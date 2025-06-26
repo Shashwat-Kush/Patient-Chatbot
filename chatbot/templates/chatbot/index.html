@@ -1,0 +1,54 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Chat Room</title>
+</head>
+<body>
+  <h1>Chat Room: <span id="room-name"></span></h1>
+  <ul id="chat-log"></ul>
+  <input id="chat-message-input" type="text" size="100">
+  <button id="chat-message-submit">Send</button>
+
+  <script>
+    // Grab the room name from the URL or template context
+    const roomName = JSON.parse(document.getElementById('room-name').textContent || '"lobby"');
+    document.getElementById('room-name').textContent = roomName;
+
+    // 1. Build the WebSocket URL (ws:// for dev; wss:// for production over TLS)
+    const wsScheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const chatSocket = new WebSocket(
+      wsScheme + '://' + window.location.host +
+      `/ws/chat/${roomName}/`
+    );
+
+    // 2. Called when the connection is opened
+    chatSocket.onopen = function(e) {
+      console.log('WebSocket connected');  // Good spot to update UI
+    };
+
+    // 3. Called when a message is received from the server
+    chatSocket.onmessage = function(e) {
+      const data = JSON.parse(e.data);
+      const li = document.createElement('li');
+      li.textContent = data.message;      // Insert text into the chat log
+      document.querySelector('#chat-log').appendChild(li);
+    };
+
+    // 4. Called when the socket closes (unexpectedly or on purpose)
+    chatSocket.onclose = function(e) {
+      console.error('WebSocket closed unexpectedly');  
+      // You can implement reconnection logic here if desired
+    };
+
+    // 5. Hook up the “Send” button to send via WebSocket
+    document.querySelector('#chat-message-submit').onclick = function(e) {
+      const inputEl = document.querySelector('#chat-message-input');
+      const message = inputEl.value;
+      chatSocket.send(JSON.stringify({ 'message': message }));
+      inputEl.value = '';  // Clear the input field
+    };
+  </script>
+</body>
+</html>
