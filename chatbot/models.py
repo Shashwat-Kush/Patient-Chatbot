@@ -16,3 +16,22 @@ class Patient(models.Model):
         # What shows up when Django needs a string (in admin, shell, etc.)
         return f"{self.name}"
     
+from django.db import models
+from django.conf import settings
+
+class ChatMessage(models.Model):
+    room = models.CharField(max_length=255)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='chat_messages'
+    )
+    content = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['timestamp']
+
+    def __str__(self):
+        # Useful for admin or debugging
+        return f"[{self.timestamp:%Y-%m-%d %H:%M}] {self.user.username}: {self.content}"  

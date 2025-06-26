@@ -72,6 +72,8 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "patient_chatbot.wsgi.application"
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/chat/lobby/'
 
 
 # Database

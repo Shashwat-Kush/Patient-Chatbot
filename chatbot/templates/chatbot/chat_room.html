@@ -27,7 +27,9 @@
     chatSocket.onmessage = (e) => {
     const data = JSON.parse(e.data);
     const li = document.createElement('li');
-    li.textContent = data.message;
+    li.textContent =
+    `[${new Date(data.timestamp).toLocaleTimeString()}] ` +
+    `${data.username}: ${data.message}`;
     document.querySelector('#chat-log').appendChild(li);
     };
 

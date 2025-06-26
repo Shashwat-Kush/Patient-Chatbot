@@ -2,11 +2,18 @@
 
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
+from .models import ChatMessage
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         # Called on initial WebSocket connection.
         # We’ll use a “room name” from the URL to create a group
+        user = self.scope['user']
+        if not user.is_authenticated:
+            # Reject connection if user is not authenticated
+            await self.close(code=4001)
+            return
         self.room_name   = self.scope['url_route']['kwargs']['room_name']
         self.group_name  = f"chat_{self.room_name}"
 
@@ -18,6 +25,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         # Accept the connection (otherwise it will be rejected)
         await self.accept()
+
+        last_messages = await self.get_last_messages(self.room_name)
+        for msg in last_messages:
+            await self.send(text_data=json.dumps({
+                'message': msg.content,
+                'username': msg.user.username,
+                'timestamp': msg.timestamp.isoformat(),
+            }))
 
     async def disconnect(self, close_code):
         # Called when the WebSocket closes
@@ -32,20 +47,35 @@ class ChatConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         message = data.get('message', '')
 
-        # Broadcast this message to the group
+        user = self.scope['user']
+        saved = await self.save_message(self.room_name, user, message)
+
+        # Broadcast to group, including metadata
         await self.channel_layer.group_send(
             self.group_name,
             {
-                'type': 'chat.message',   # event name → calls chat_message()
-                'message': message,
+                'type': 'chat.message',
+                'message': saved.content,
+                'username': saved.user.username,
+                'timestamp': saved.timestamp.isoformat(),
             }
         )
 
     async def chat_message(self, event):
-        # Called when someone has sent a message to the group
-        message = event['message']
-
-        # Send the message down the WebSocket to the client
+        # Send full payload to WebSocket
         await self.send(text_data=json.dumps({
-            'message': message
+            'message':   event['message'],
+            'username':  event.get('username'),
+            'timestamp': event.get('timestamp'),
         }))
+
+    @database_sync_to_async
+    def get_last_messages(self, room_name):
+        # Fetch last 50 messages (oldest first)
+        qs = ChatMessage.objects.filter(room=room_name)
+        return qs.order_by('-timestamp')[:50][::-1]
+    
+    @database_sync_to_async
+    def save_message(self, room, user, content):
+        return ChatMessage.objects.create(room=room, user_id=user.id, content=content)
+
