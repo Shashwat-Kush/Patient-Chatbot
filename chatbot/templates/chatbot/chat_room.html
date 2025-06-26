@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Chat Room: {{ room_name }}</title>
+</head>
+<body>
+<h1>Room: {{ room_name }}</h1>
+<ul id="chat-log"></ul>
+<input id="chat-message-input" type="text" size="100" autofocus>
+<button id="chat-message-submit">Send</button>
+
+<script>
+    // Safely inject the room name into JavaScript
+    const roomName = "{{ room_name|escapejs }}";
+
+    // Choose ws:// or wss:// based on page protocol
+    const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const chatSocket = new WebSocket(
+    `${wsScheme}://${window.location.host}/ws/chat/${roomName}/`
+    );
+
+    chatSocket.onopen = () => {
+    console.log('WebSocket connected');
+    };
+
+    chatSocket.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    const li = document.createElement('li');
+    li.textContent = data.message;
+    document.querySelector('#chat-log').appendChild(li);
+    };
+
+    chatSocket.onclose = () => {
+    console.log('WebSocket closed unexpectedly');
+    };
+
+    document.getElementById('chat-message-submit').addEventListener('click', () => {
+    const inputEl = document.getElementById('chat-message-input');
+    const message = inputEl.value;
+    if (message.trim() === '') return;
+    chatSocket.send(JSON.stringify({ message }));
+    inputEl.value = '';
+    });
+</script>
+</body>
+</html>

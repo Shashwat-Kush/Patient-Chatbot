@@ -15,3 +15,4 @@ class Patient(models.Model):
     def __str__(self):
         # What shows up when Django needs a string (in admin, shell, etc.)
         return f"{self.name}"
+    
