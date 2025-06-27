@@ -1,3 +1,5 @@
+from .models import Patient
+
 def classify_intent(text:str) ->str:
     text_lower = text.lower()
     if "appointment" in text_lower:

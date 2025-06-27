@@ -1,11 +1,13 @@
 # chatbot/consumers.py
 
+import asyncio
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import ChatMessage
 from .ai import handle_intent
 from asgiref.sync import sync_to_async
+import datetime 
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -74,6 +76,30 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "timestamp": saved.timestamp.isoformat(),
             }
         )
+        import asyncio
+        asyncio.create_task(self._bot_respond(message))
+
+    async def _bot_respond(self, user_message: str):
+        """
+        Runs in background: calls your intent handler,
+        then broadcasts the “Bot” response just like a user’s.
+        """
+        # Call your sync-based handle_intent in a thread
+        bot_text = await self.generate_bot_reply(user_message)
+
+        # (Optional) persist the bot’s message: use user_id=None or a dedicated Bot user
+        # await self.save_message(self.room_name, self.scope['user'], bot_text)
+
+        # Broadcast the bot’s reply
+        await self.channel_layer.group_send(
+            self.group_name,
+            {
+                "type": "chat.message",
+                "message": bot_text,
+                "username": "Bot",
+                "timestamp": datetime.datetime.now().isoformat(),
+            }
+        )
     async def chat_message(self, event):
         # Send full payload to WebSocket
         await self.send(text_data=json.dumps({
@@ -101,4 +127,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def save_message(self, room, user, content):
         return ChatMessage.objects.create(room=room, user_id=user.id, content=content)
+    
+    # generate_bot_reply = sync_to_async(handle_intent, thread_sensitive=True)
+    generate_bot_reply = staticmethod(
+        sync_to_async(handle_intent, thread_sensitive=True)
+    )
 
