@@ -48,19 +48,29 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = data.get('message', '')
 
         user = self.scope['user']
-        saved = await self.save_message(self.room_name, user, message)
+        # saved = await self.save_message(self.room_name, user, message)
 
-        # Broadcast to group, including metadata
+        # # Broadcast to group, including metadata
+        # await self.channel_layer.group_send(
+        #     self.group_name,
+        #     {
+        #         'type': 'chat.message',
+        #         'message': saved.content,
+        #         'username': saved.user.username,
+        #         'timestamp': saved.timestamp.isoformat(),
+        #     }
+        # )
+        username = self.scope['user'].username
+        saved = await self.save_message(self.room_name,self.scope['user'],message)
         await self.channel_layer.group_send(
             self.group_name,
             {
-                'type': 'chat.message',
-                'message': saved.content,
-                'username': saved.user.username,
-                'timestamp': saved.timestamp.isoformat(),
+                "type": "chat.message",
+                "message": saved.content,
+                "username": username,
+                "timestamp": saved.timestamp.isformat(),
             }
         )
-
     async def chat_message(self, event):
         # Send full payload to WebSocket
         await self.send(text_data=json.dumps({
