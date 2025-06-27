@@ -4,6 +4,8 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import ChatMessage
+from .ai import handle_intent
+from asgiref.sync import sync_to_async
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -28,11 +30,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         last_messages = await self.get_last_messages(self.room_name)
         for msg in last_messages:
-            await self.send(text_data=json.dumps({
-                'message': msg.content,
-                'username': msg.user.username,
-                'timestamp': msg.timestamp.isoformat(),
-            }))
+            # await self.send(text_data=json.dumps({
+            #     'message': msg.content,
+            #     'username': msg.user.username,
+            #     'timestamp': msg.timestamp.isoformat(),
+            # }))
+            await self.send(text_data=json.dumps(msg))
 
     async def disconnect(self, close_code):
         # Called when the WebSocket closes
@@ -68,7 +71,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "type": "chat.message",
                 "message": saved.content,
                 "username": username,
-                "timestamp": saved.timestamp.isformat(),
+                "timestamp": saved.timestamp.isoformat(),
             }
         )
     async def chat_message(self, event):
@@ -81,9 +84,19 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def get_last_messages(self, room_name):
-        # Fetch last 50 messages (oldest first)
-        qs = ChatMessage.objects.filter(room=room_name)
-        return qs.order_by('-timestamp')[:50][::-1]
+    # Fetch messages + user in one sync call, then serialize to simple dicts:
+        qs = (ChatMessage.objects
+            .filter(room=room_name)
+            .select_related('user')
+            .order_by('-timestamp')[:50])
+        return [
+            {
+                "message":   msg.content,
+                "username":  msg.user.username,
+                "timestamp": msg.timestamp.isoformat(),
+            }
+            for msg in reversed(qs)
+        ]
     
     @database_sync_to_async
     def save_message(self, room, user, content):
